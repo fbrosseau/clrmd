@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
@@ -26,6 +27,7 @@ namespace Microsoft.Diagnostics.Runtime.Desktop
         public override string FileName => "<error>";
         public override ulong ImageBase => 0;
         public override ulong Size => 0;
+        public override FileVersionInfo ModuleFileVersionInfo => null;
 
         public override IEnumerable<ClrType> EnumerateTypes()
         {

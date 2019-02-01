@@ -363,11 +363,27 @@ namespace Microsoft.Diagnostics.Runtime
             vq = new VirtualQueryData();
             if (_spaces2 == null)
                 return false;
-
+                       
             SetClientInstance();
             int hr = _spaces2.QueryVirtual(addr, out MEMORY_BASIC_INFORMATION64 mem);
             vq.BaseAddress = mem.BaseAddress;
             vq.Size = mem.RegionSize;
+
+            switch(mem.Type)
+            {
+                case MEM.IMAGE:
+                    vq.Type = VirtualMemoryType.Image;
+                    break;
+                case MEM.MAPPED:
+                    vq.Type = VirtualMemoryType.Mapped;
+                    break;
+                case MEM.PRIVATE:
+                    vq.Type = VirtualMemoryType.Private;
+                    break;
+                default:
+                    vq.Type = VirtualMemoryType.Unknown;
+                    break;
+            }
 
             return hr == 0;
         }

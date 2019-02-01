@@ -158,7 +158,7 @@ namespace Microsoft.Diagnostics.Runtime.Utilities
                     }
                     else
                     {
-                        data = new VirtualQueryData(targetStartAddress, _memoryChunks.Size(mid));
+                        data = new VirtualQueryData(targetStartAddress, _memoryChunks.Size(mid), VirtualMemoryType.Unknown);
                         return true;
                     }
                 }
@@ -181,7 +181,7 @@ namespace Microsoft.Diagnostics.Runtime.Utilities
                     continue;
 
                 ulong size = _memoryChunks.Size(i);
-                yield return new VirtualQueryData(targetStartAddress, size);
+                yield return new VirtualQueryData(targetStartAddress, size, VirtualMemoryType.Unknown);
             }
         }
 

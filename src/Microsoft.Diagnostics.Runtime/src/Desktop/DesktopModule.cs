@@ -5,10 +5,15 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using Microsoft.Diagnostics.Runtime.DacInterface;
+using Microsoft.Diagnostics.Runtime.Interop;
 using Microsoft.Diagnostics.Runtime.Utilities;
+using FileVersionInfo = System.Diagnostics.FileVersionInfo;
+using IMAGE_FILE_HEADER = Microsoft.Diagnostics.Runtime.Interop.IMAGE_FILE_HEADER;
+using IMAGE_DOS_HEADER = Microsoft.Diagnostics.Runtime.Interop.IMAGE_DOS_HEADER;
 
 namespace Microsoft.Diagnostics.Runtime.Desktop
 {
@@ -25,6 +30,7 @@ namespace Microsoft.Diagnostics.Runtime.Desktop
         private bool _typesLoaded;
         private ClrAppDomain[] _appDomainList;
         private PdbInfo _pdb;
+        private FileVersionInfo _fileVersion;
 
         public DesktopModule(DesktopRuntimeBase runtime, ulong address, IModuleData data, string name, string assemblyName)
             : base(runtime)
@@ -71,6 +77,37 @@ namespace Microsoft.Diagnostics.Runtime.Desktop
             }
         }
 
+        public override FileVersionInfo ModuleFileVersionInfo
+        {
+            get
+            {
+                if (_fileVersion != null)
+                    return _fileVersion;
+
+                var tempFileName = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".dll");
+                try
+                {
+                    using (var temporaryFile = new FileStream(tempFileName, FileMode.Create, FileAccess.Write))
+                    {
+                        Save(temporaryFile);
+                    }
+
+                    _fileVersion = FileVersionInfo.GetVersionInfo(tempFileName);
+                    return _fileVersion;
+                }
+                finally
+                {
+                    try
+                    {
+                        File.Delete(tempFileName);
+                    }
+                    catch
+                    {
+                    }
+                }
+            }
+        }
+               
         internal ulong GetMTForDomain(ClrAppDomain domain, DesktopHeapType type)
         {
             DesktopGCHeap heap = null;
@@ -246,5 +283,80 @@ namespace Microsoft.Diagnostics.Runtime.Desktop
         }
 
         public override ulong AssemblyId { get; }
+        
+        public override void Save(Stream destination)
+        {
+            _runtime.DataReader.VirtualQuery(ImageBase, out var virtualQueryResult);
+            bool isImage = virtualQueryResult.Type == VirtualMemoryType.Image;
+
+            var dosHeader = ReadStruct<IMAGE_DOS_HEADER>(ImageBase);
+            var ntHeader = ReadStruct<IMAGE_NT_HEADERS_SlimAnyCpu>(ImageBase + dosHeader.e_lfanew);
+
+            var locations = new List<IMAGE_SECTION_HEADER>();
+
+            var sectionAddr = ImageBase + dosHeader.e_lfanew + ntHeader.FileHeader.SizeOfOptionalHeader + 4 + (ulong)Marshal.SizeOf(typeof(IMAGE_FILE_HEADER));
+
+            int sizeofSectionHeader = Marshal.SizeOf(typeof(IMAGE_SECTION_HEADER));
+            for (var i = 0; i < ntHeader.FileHeader.NumberOfSections; ++i)
+            {
+                var sectionHeader = ReadStruct<IMAGE_SECTION_HEADER>(sectionAddr);
+                locations.Add(sectionHeader);
+                sectionAddr += (ulong)sizeofSectionHeader;
+            }
+
+            locations.Sort((a, b) => a.PointerToRawData.CompareTo(b.PointerToRawData));
+
+            CopyDumpMemoryToStream(destination, ImageBase, ntHeader.OptionalHeader.SizeOfHeaders);
+            foreach (var loc in locations)
+            {
+                ulong readAddr = ImageBase + (isImage ? loc.VirtualAddress : loc.PointerToRawData);
+                CopyDumpMemoryToStream(destination, readAddr, loc.SizeOfRawData);
+            }
+        }
+
+        private unsafe T ReadStruct<T>(ulong address)
+        {
+            var buffer = new byte[Marshal.SizeOf(typeof(T))];
+            FillBuffer(address, buffer, 0, buffer.Length);
+            fixed(byte* ptr = buffer)
+            {
+                return (T)Marshal.PtrToStructure((IntPtr)ptr, typeof(T));
+            }
+        }
+
+        private void FillBuffer(ulong address, byte[] buffer, int offset, int count)
+        {
+            const int maxReadSize = 4096;
+            byte[] temp = new byte[maxReadSize];
+
+            int remaining = count;
+            while (remaining > 0)
+            {
+                int readSize = Math.Min(remaining, maxReadSize);
+                if (!_runtime.DataReader.ReadMemory(address, temp, readSize, out var actualRead) || actualRead <= 0)
+                    throw new InvalidOperationException("Failed to read memory");
+
+                Buffer.BlockCopy(temp, 0, buffer, offset, actualRead);
+
+                offset += actualRead;
+                remaining -= actualRead;
+            }
+        }
+
+        private void CopyDumpMemoryToStream(Stream output, ulong address, uint count)
+        {
+            const int maxReadSize = 4096;
+            byte[] temp = new byte[maxReadSize];
+
+            var remaining = checked((int)count);
+            while (remaining > 0)
+            {
+                int readSize = Math.Min(remaining, maxReadSize);
+                FillBuffer(address, temp, 0, readSize);
+                output.Write(temp, 0, readSize);
+                remaining -= readSize;
+                address += (uint)readSize;
+            }
+        }
     }
 }

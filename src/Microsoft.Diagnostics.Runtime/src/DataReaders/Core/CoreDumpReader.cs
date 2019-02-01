@@ -210,7 +210,8 @@ namespace Microsoft.Diagnostics.Runtime
 
                 if (start <= addr && addr < end)
                 {
-                    vq = new VirtualQueryData((ulong)start, (ulong)item.RefHeader.VirtualSize);
+                    var sectionType = VirtualMemoryType.Unknown;
+                    vq = new VirtualQueryData((ulong)start, (ulong)item.RefHeader.VirtualSize, sectionType);
                     return true;
                 }
             }

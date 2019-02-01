@@ -2,8 +2,10 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 
 namespace Microsoft.Diagnostics.Runtime
 {
@@ -133,5 +135,38 @@ namespace Microsoft.Diagnostics.Runtime
         /// Returns the pdb information for this module.
         /// </summary>
         public abstract PdbInfo Pdb { get; }
+
+        /// <summary>
+        /// Returns the FileVersionInfo values for this module, which would typically be set by the AssemblyFileVersionAttribute.
+        /// </summary>
+        public abstract FileVersionInfo ModuleFileVersionInfo { get; }
+
+        /// <summary>
+        /// Attempts to extract this module to disk, so that the original assembly can be inspected.
+        /// </summary>
+        public virtual void Save(string file)
+        {
+            Save(file, false);
+        }
+
+        /// <summary>
+        /// Attempts to extract this module to disk, so that the original assembly can be inspected, optionally 
+        /// overwriting the target file if it already exists.
+        /// </summary>
+        public virtual void Save(string file, bool overwrite)
+        {
+            using(var stream = new FileStream(file, overwrite ? FileMode.Create : FileMode.CreateNew, FileAccess.Write, FileShare.Read))
+            {
+                Save(stream);
+            }
+        }
+
+        /// <summary>
+        /// Attempts to copy this module into the target Stream, so that the original assembly can be further inspected with Reflection and the like.
+        /// </summary>
+        public virtual void Save(Stream destination)
+        {
+            throw new NotSupportedException("This module cannot be exported.");
+        }
     }
 }

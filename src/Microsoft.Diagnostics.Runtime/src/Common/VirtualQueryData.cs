@@ -6,6 +6,14 @@ using System;
 
 namespace Microsoft.Diagnostics.Runtime
 {
+    public enum VirtualMemoryType
+    {
+        Unknown,
+        Image,
+        Mapped,
+        Private
+    }
+
     /// <summary>
     /// The result of a VirtualQuery.
     /// </summary>
@@ -22,15 +30,19 @@ namespace Microsoft.Diagnostics.Runtime
         /// </summary>
         public ulong Size;
 
+        public VirtualMemoryType Type;
+
         /// <summary>
         /// Constructor.
         /// </summary>
         /// <param name="addr">Base address of the memory range.</param>
         /// <param name="size">The size of the memory range.</param>
-        public VirtualQueryData(ulong addr, ulong size)
+        /// <param name="type">The kind of memory in this section</param>
+        public VirtualQueryData(ulong addr, ulong size, VirtualMemoryType type)
         {
             BaseAddress = addr;
             Size = size;
+            Type = type;
         }
     }
 }

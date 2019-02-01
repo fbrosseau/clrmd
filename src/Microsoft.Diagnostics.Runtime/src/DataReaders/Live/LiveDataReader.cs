@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for more information.
 
+using Microsoft.Diagnostics.Runtime.Interop;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -239,6 +240,23 @@ namespace Microsoft.Diagnostics.Runtime
 
             vq.BaseAddress = mem.BaseAddress;
             vq.Size = mem.Size;
+
+            switch ((MEM)mem.Type)
+            {
+                case MEM.IMAGE:
+                    vq.Type = VirtualMemoryType.Image;
+                    break;
+                case MEM.MAPPED:
+                    vq.Type = VirtualMemoryType.Mapped;
+                    break;
+                case MEM.PRIVATE:
+                    vq.Type = VirtualMemoryType.Private;
+                    break;
+                default:
+                    vq.Type = VirtualMemoryType.Unknown;
+                    break;
+            }
+
             return true;
         }
 
